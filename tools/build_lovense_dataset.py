@@ -202,32 +202,35 @@ def get_paragraphs(path: str) -> list[str]:
 
 # ─── Ollama scoring ────────────────────────────────────────────────────────────
 
-def score_paragraph(text: str, url: str, model: str) -> Optional[int]:
+
+_debug_shown = 0
+_debug_lock = __import__('threading').Lock()
+
+def score_worker(args: tuple) -> dict:
+    global _debug_shown
+    row_id, book_title, paragraph, url, model, debug = args
     payload = {
         "model": model,
-        "prompt": SCORE_PROMPT.format(text=text),
+        "prompt": SCORE_PROMPT.format(text=paragraph),
         "stream": False,
-        "options": {
-            "temperature": 0.0,
-            "num_predict": 4,
-            "stop": ["\n", " ", ".", ","],
-        }
+        "options": {"temperature": 0.0, "num_predict": 6},
     }
+    score = None
+    raw = ""
     try:
         resp = requests.post(f"{url}/api/generate", json=payload, timeout=TIMEOUT)
         resp.raise_for_status()
         raw = resp.json().get("response", "").strip()
-        m = re.search(r'\b([01]?\d|20)\b', raw)
+        m = re.search(r'\b(20|1\d|\d)\b', raw)
         if m:
-            return max(0, min(20, int(m.group(1))))
+            score = max(0, min(20, int(m.group(1))))
     except Exception:
         pass
-    return None
-
-
-def score_worker(args: tuple) -> dict:
-    row_id, book_title, paragraph, url, model = args
-    score = score_paragraph(paragraph, url, model)
+    if debug:
+        with _debug_lock:
+            if _debug_shown < 5:
+                print(f"\n[DEBUG #{row_id}] raw='{raw}' → score={score}")
+                _debug_shown += 1
     return {"id": row_id, "book": book_title, "score": score, "text": paragraph}
 
 
@@ -265,6 +268,8 @@ def main():
                         help="Only save rows with score >= N (e.g. 4 to skip neutral)")
     parser.add_argument("--check",     action="store_true",
                         help="Verify CUDA + Ollama setup then exit")
+    parser.add_argument("--debug",     action="store_true",
+                        help="Print first 5 raw Ollama responses (diagnose parse failures)")
     args = parser.parse_args()
 
     if args.check:
@@ -301,7 +306,7 @@ def main():
         skipped_book = 0
         for para in paras:
             if global_id not in done_ids:
-                work_items.append((global_id, book_path.stem, para, OLLAMA_URL, args.model))
+                work_items.append((global_id, book_path.stem, para, OLLAMA_URL, args.model, args.debug))
             else:
                 skipped_book += 1
             global_id += 1
