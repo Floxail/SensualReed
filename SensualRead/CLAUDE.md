@@ -1,0 +1,279 @@
+# CLAUDE.md - SensualRead Project Memory
+
+> **RULE**: Always read this file at the start of each session. Always update it at the end.
+> **VERSIONING RULE**: Current version = **v0.17**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
+
+---
+
+## Project Overview
+SensualRead is a mobile e-reader that triggers Lovense toy vibrations based on erotic text analysis. 3-layer decoupled architecture: Reader Engine → Trigger System → Haptic Manager.
+
+---
+
+## Current Status
+
+### Completed Phases
+- [x] **Phase 1** — Project scaffolding, folder structure, interface stubs
+- [x] **Phase 2** — Haptic Manager: BLE, MockHapticService, LiveHapticService, DeviceTestScreen
+- [x] **Phase 3** — Reader Engine: TxtRenderer, EpubRenderer, ReaderView, ReaderScreen
+- [x] **Phase 4** — Library & Polish: persistence, EPUB formatting, navigation, reader personalization, adaptive pagination, smooth transitions, prefetch, safe areas, zero-lag intensity
+- [x] **Phase 5** — Library covers + Bulk import: EpubCoverExtractor, BulkImportService, cover display in HomeScreen, scanner modal
+
+### Bug Fixes Applied
+- [x] **v0.16** — Scroll blocked in reader: replaced `TouchableOpacity` wrapper around `ScrollView` with plain `View` + two absolute-positioned tap overlays (left/right 25% zones)
+- [x] **v0.17** — Blank pages after reinstall: race condition in `ReaderView` where `onLayout` fired before renderer loaded → `recalcCharsPerPage` returned early → default `charsPerPage=1500` used forever. Fixed by calling `recalcCharsPerPage()` in `loadFile` after renderer loads and listener subscribed.
+
+### Phase 5.5: Ultra-Stability (COMPLETE — v0.18)
+- [x] **Snapshot System** — `charOffset` (char position at page start) stored alongside `currentPage` in `LibraryBook`. Renderers expose `getCurrentCharOffset()` / `goToCharOffset(offset)`. On resume, precise text position used instead of page number (immune to `charsPerPage` changes from font changes). `pageInfo` state in `ReaderScreen` now includes `charOffset` so AppState background saves are also offset-accurate.
+- [x] **Ready-Gate UI** — `ReaderView` shows `ActivityIndicator` overlay until `onLayout` fires with valid dimensions (`dimsReady` state). 500ms safety timeout fallback. Gate resets on new book load (`setDimsReady(false)` in filePath effect). User never sees flash of mis-paginated text.
+- [x] **AppState Persistence** — `ReaderScreen` subscribes to `AppState.addEventListener('change')`. When app goes `background` or `inactive`, `updateProgress` is called immediately with latest page + charOffset. Ensures position is saved even if user hard-closes app without turning a page.
+- [x] **Adaptive Buffering** — `TriggerEngine.processContent` fallback path (no cache hit) now deferred via `setTimeout(..., 0)`. Text truncated to first 4000 chars before analysis in all paths. Zero-lag cache-hit path untouched (still synchronous). Analysis never blocks the main thread during page-turn animation.
+
+### Planned Phases (plans written, not yet executed)
+- [ ] **Phase 6** — PDF + CBZ/CBR renderer support → `docs/superpowers/plans/2026-05-13-phase6-multiformat-pdf-cbz.md`
+- [ ] **Phase 7** — OPDS catalog client (download books from catalogs) → `docs/superpowers/plans/2026-05-13-phase7-opds-client.md`
+- [ ] **Phase 8** — Lovense profiles + smarter AI-style text analysis → `docs/superpowers/plans/2026-05-13-phase8-lovense-profiles-ai-analysis.md`
+
+**Current phase**: 5.5 Ultra-Stability COMPLETE → **Phase 6 READY**
+**Current APK**: `SensualRead-v0.18.apk` (~128 MB)
+
+---
+
+## Tech Stack (INSTALLED)
+
+| Layer | Technology | Version | Status |
+|-------|------------|---------|--------|
+| Framework | React Native CLI | 0.83.1 | ✓ |
+| Language | TypeScript | 5.x | ✓ |
+| BLE | react-native-ble-plx | 3.x | ✓ |
+| State | Zustand | 4.x | ✓ |
+| Navigation | React Navigation | 6.x | ✓ |
+| Storage | AsyncStorage | latest | ✓ |
+| FS | react-native-fs | latest | ✓ |
+| ZIP | jszip | latest | ✓ |
+| File Picker | @react-native-documents/picker | ^12.0.0 | ✓ |
+| Buffer | buffer | latest | ✓ |
+
+> Using `@react-native-documents/picker` (not `react-native-document-picker`) for RN 0.83 compat.
+
+**Target**: Android (MVP) → iOS (future)
+**Formats**: EPUB/TXT (done) → PDF, CBZ, CBR (Phase 6)
+
+---
+
+## Architecture Decision Records (ADR)
+
+### ADR-001: React Native CLI over Expo/Flutter — VALIDATED ✓
+
+### ADR-002: 3-Layer Decoupled Architecture — VALIDATED ✓
+```
+Reader Engine → (text stream) → Trigger System → (score 0-100) → Haptic Manager → Lovense
+```
+
+### ADR-003: Haptic Service Strategy Pattern — IMPLEMENTED ✓
+- `MockHapticService`: console logging for dev
+- `LiveHapticService`: real BLE, Nordic UART protocol
+
+### ADR-004: Renderer Strategy Pattern — IMPLEMENTED ✓
+- `TxtRenderer`: RNFS read + smart paragraph/sentence pagination
+- `EpubRenderer`: JSZip + OPF spine + HTML→text + metadata
+
+### ADR-005: Intensity Score Mapping — IMPLEMENTED ✓
+```
+0-10   → Stop    (Vibrate:0)
+11-40  → Low     (Vibrate:5)
+41-80  → Medium  (Vibrate:15)
+81-100 → High    (Vibrate:20 + Rotate:5)
+```
+
+### ADR-006: Lovense Design System — IMPLEMENTED ✓
+```
+Light: primary=#FF4D7D, bg=#FFFFFF, surface=#FAFAFA, readerBg=#FFFBF5
+Dark:  primary=#FF80A0, bg=#121212, surface=#1E1E1E, readerBg=#121212
+Pink scale: #FFF0F5 → #FF4D7D → #800031
+```
+
+### ADR-007: Adaptive Pagination & Smooth Transitions — IMPLEMENTED ✓
+```
+charsPerPage = max(800, floor(w/(fontSize×ratio)) × floor(h/(fontSize×lineHeight)))
+charWidthRatio: serif=0.50, sans-serif=0.48, monospace=0.60
+Transition: 180ms slide out → content swap → 180ms slide in (native driver)
+Buffer: triple-buffer {prevText, currText, nextText} via getPageText(n) O(1)
+PageText = React.memo (prevents intensity re-renders)
+Race condition fix (v0.17): recalcCharsPerPage() called in loadFile after renderer ready
+```
+
+### ADR-008: Library Persistence — IMPLEMENTED ✓
+```
+Store: useLibraryStore (Zustand + AsyncStorage)
+Book: id, title, author, filePath, coverImagePath, currentPage, totalPages, addedAt, lastReadAt
+Progress: saved on every page turn
+Covers: EpubCoverExtractor extracts from EPUB manifest → saves to library folder
+```
+
+### ADR-010: Snapshot System — IMPLEMENTED ✓
+```
+charOffset stored in LibraryBook alongside currentPage
+IRenderer.getCurrentCharOffset() → raw startIndex of page in full text
+IRenderer.goToCharOffset(offset) → linear scan of pageOffsets[], calls goToPage()
+TxtRenderer/EpubRenderer: pageOffsets[] built during paginateContent(), reset on setCharsPerPage()
+Resume priority: charOffset > 0 → goToCharOffset, else → goToPage(initialPage)
+AsyncStorage schema migration: charOffset ?? book.charOffset ?? 0 (no undefined risk)
+```
+
+### ADR-009: Bulk Import — IMPLEMENTED ✓
+```
+BulkImportService: scans 7 default dirs (Downloads, Documents, Books, etc.) recursively depth=2
+Filters: .epub, .txt files only
+UI: scanner modal in HomeScreen with checkbox list + Annuler/Importer buttons
+```
+
+---
+
+## Folder Structure (Phase 5 Complete)
+
+```
+SensualRead/
+├── src/
+│   ├── components/
+│   │   ├── reader/
+│   │   │   ├── ReaderView.tsx           # Main reader component
+│   │   │   ├── renderers/
+│   │   │   │   ├── IRenderer.ts
+│   │   │   │   ├── TxtRenderer.ts       # ✓ plain text + pagination
+│   │   │   │   ├── EpubRenderer.ts      # ✓ JSZip + OPF + HTML→text
+│   │   │   │   └── index.ts             # factory
+│   │   │   └── index.ts
+│   │   └── ErrorBoundary.tsx
+│   │
+│   ├── engines/analysis/
+│   │   ├── ITriggerEngine.ts
+│   │   ├── KeywordAnalyzer.ts           # regex analysis
+│   │   ├── TriggerEngine.ts             # preloadContent + zero-lag
+│   │   └── keywords.json               # 107 FR/EN keywords
+│   │
+│   ├── services/
+│   │   ├── bluetooth/
+│   │   │   ├── IHapticService.ts
+│   │   │   ├── MockHapticService.ts
+│   │   │   ├── LiveHapticService.ts     # ✓ BLE + persistent connection
+│   │   │   └── LovenseProtocol.ts
+│   │   └── library/
+│   │       ├── EpubCoverExtractor.ts    # ✓ extracts cover from EPUB
+│   │       ├── BulkImportService.ts     # ✓ scans device folders
+│   │       └── index.ts
+│   │
+│   ├── store/
+│   │   ├── useAppStore.ts               # theme + hapticService global
+│   │   └── useLibraryStore.ts           # library persistence (AsyncStorage)
+│   │
+│   ├── theme/
+│   │   ├── colors.ts
+│   │   └── index.ts                     # useColors, useTheme, useThemeToggle
+│   │
+│   ├── screens/
+│   │   ├── HomeScreen.tsx               # ✓ library + covers + bulk import modal
+│   │   ├── ReaderScreen.tsx             # ✓ reader + TriggerEngine + cover extraction
+│   │   ├── SettingsScreen.tsx           # ✓ appearance, haptics, analysis, reader prefs
+│   │   └── DeviceTestScreen.tsx         # ✓ BLE testing
+│   │
+│   ├── navigation/
+│   │   └── AppNavigator.tsx
+│   │
+│   ├── types/index.ts
+│   └── utils/index.ts
+│
+├── docs/superpowers/
+│   ├── plans/
+│   │   ├── 2026-05-13-phase6-multiformat-pdf-cbz.md    # PDF + CBZ renderers
+│   │   ├── 2026-05-13-phase7-opds-client.md            # OPDS catalog client
+│   │   └── 2026-05-13-phase8-lovense-profiles-ai-analysis.md  # profiles + smart analysis
+│   └── specs/
+│       └── (specs written during brainstorming sessions)
+│
+├── android/
+│   └── app/src/main/AndroidManifest.xml  # ✓ BLE + storage permissions
+│
+├── App.tsx
+├── CLAUDE.md
+└── package.json
+```
+
+---
+
+## Known Pre-existing TypeScript Errors (ignore in grep/build)
+
+These exist in the codebase but don't block builds:
+- `Typography.h4` in `HomeScreen.tsx` (key missing from Typography)
+- `DeviceInfo` / `AnalysisResult` in `types/index.ts` (unused stubs)
+
+Filter command: `grep -v "HomeScreen\|types/index"`
+
+---
+
+## Lovense Protocol
+```
+Service:  6e400001-b5a3-f393-e0a9-e50e24dcca9e
+TX (write): 6e400002-b5a3-f393-e0a9-e50e24dcca9e
+RX (notify): 6e400003-b5a3-f393-e0a9-e50e24dcca9e
+
+Commands:  Vibrate:N;  Rotate:N;  Vibrate:N;Rotate:M;  Battery;   (N = 0-20)
+```
+
+---
+
+## Build Commands
+```bash
+cd C:\Users\Floxa\Downloads\BookLovense\SensualRead
+
+# Bundle JS (required before assembleDebug for standalone APK)
+npx react-native bundle --platform android --dev false --entry-file index.js \
+  --bundle-output android/app/src/main/assets/index.android.bundle \
+  --assets-dest android/app/src/main/res
+
+# Build APK
+cd android && ./gradlew assembleDebug
+# Output: android/app/build/outputs/apk/debug/app-debug.apk
+# Copy:   cp ... C:\Users\Floxa\Downloads\BookLovense\SensualRead-vX.XX.apk
+
+# Dev (requires connected device)
+npx react-native start --reset-cache
+npx react-native run-android
+```
+
+---
+
+## Session History (recent → old)
+
+### 2026-05-14 — v0.18 — Phase 5.5 Ultra-Stability
+- **Snapshot System**: `charOffset` in `LibraryBook`, `pageOffsets[]` in TxtRenderer/EpubRenderer, `goToCharOffset()` API on IRenderer; `pageInfo` in ReaderScreen now tracks charOffset; AppState save includes charOffset
+- **Ready-Gate UI**: `dimsReady` state in ReaderView + absolute-fill `ActivityIndicator` overlay + 500ms safety timeout + reset on filePath change
+- **AppState Persistence**: `AppState.addEventListener` in ReaderScreen saves progress on background/inactive
+- **Adaptive Buffering**: TriggerEngine fallback analysis deferred via `setTimeout(0)`, 4000-char truncation in all analysis paths
+- **Files**: TriggerEngine.ts, IRenderer.ts, TxtRenderer.ts, EpubRenderer.ts, useLibraryStore.ts, ReaderView.tsx, ReaderScreen.tsx, SettingsScreen.tsx
+
+### 2026-05-14 — v0.17 — Blank pages race condition fix
+- **Bug**: after reinstall, ReaderView showed blank/clipped pages on resume
+- **Root cause**: `onLayout` fires before renderer loads → `recalcCharsPerPage` skips (renderer not ready) → renderer loads with default `charsPerPage=1500` → never corrected
+- **Fix**: added `recalcCharsPerPage()` call in `loadFile` after `rendererRef.current = renderer` + listener subscribed
+- **Files**: `src/components/reader/ReaderView.tsx`, `src/screens/SettingsScreen.tsx` (version bump)
+
+### 2026-05-13 — v0.16 — Scroll fix + Phase 5 (covers + bulk import)
+- **Scroll bug**: `TouchableOpacity` wrapping `ScrollView` blocked Android scroll gestures
+- **Fix**: replaced wrapper with plain `View` + two absolute `TouchableOpacity` overlays (left/right 25% = tap zones only)
+- **Phase 5 features**:
+  - `EpubCoverExtractor`: 3-strategy cover extraction (meta tag → first manifest image), saves to library folder
+  - `BulkImportService`: scans 7 default dirs recursively (depth=2), deduplicates by path
+  - `HomeScreen`: cover images on book cards, scanner modal with checkbox select + bulk import
+  - `ReaderScreen`: triggers cover extraction on new EPUB import
+  - `useLibraryStore`: added `coverImagePath`, `updateCover` action
+
+### 2026-05-12 — v0.12-0.15 — Phase 4 (Library, Adaptive Pagination, Zero-Lag)
+- Library persistence via AsyncStorage (`useLibraryStore`)
+- Adaptive pagination: `onLayout` → `charsPerPage` from viewport dims
+- Triple-buffer prefetch, React.memo PageText
+- 180ms slide transition (native driver)
+- Zero-lag intensity: `preloadContent` + Option A cache
+- BLE persistent connection (store-level service, no disconnect on screen nav)
+- Safe areas on all screens, font size/family presets in Settings
+- French keyword dict (107 mots)

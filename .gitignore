@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+SensualRead/node_modules/
+
+# Build outputs
+*.apk
+*.aab
+*.ipa
+SensualRead/android/app/build/
+SensualRead/android/build/
+SensualRead/.gradle/
+SensualRead/android/.gradle/
+SensualRead/android/app/.cxx/
+SensualRead/ios/build/
+SensualRead/ios/Pods/
+SensualRead/ios/DerivedData/
+
+# JS bundle (generated at build time)
+SensualRead/android/app/src/main/assets/index.android.bundle
+SensualRead/android/app/src/main/assets/index.android.bundle.map
+SensualRead/android/app/src/main/res/drawable-*/
+SensualRead/android/app/src/main/res/raw/
+
+# Keystore / secrets
+*.keystore
+*.jks
+SensualRead/android/local.properties
+SensualRead/.env
+.env
+
+# Metro
+SensualRead/.metro-health-check*
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+hs_err_pid*.log
+replay_pid*.log
+
+# React Native cache
+SensualRead/.buckd/
+SensualRead/buck-out/
+SensualRead/buck-cache/
