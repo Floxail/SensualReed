@@ -8,19 +8,21 @@
 export interface BookMetadata {
   title: string;
   author?: string;
-  cover?: string;       // Base64 or URI
+  cover?: string;           // Base64 or URI
   totalPages: number;
   currentPage: number;
   language?: string;
   publisher?: string;
   description?: string;
+  format?: 'epub' | 'txt' | 'pdf' | 'cbz' | 'cbr';
 }
 
 export interface PageContent {
-  text: string;           // Plain text for analysis
-  html?: string;          // HTML if available (EPUB)
-  images?: string[];      // Image URIs on this page
+  text: string;             // Plain text for analysis
+  html?: string;            // HTML if available (EPUB)
+  images?: string[];        // Image URIs on this page
   pageNumber: number;
+  binaryData?: Uint8Array;  // Raw page data for PDF/CBZ renderers (Phase 6)
 }
 
 export type ContentChangeCallback = (content: PageContent) => void;
@@ -122,4 +124,11 @@ export interface IRenderer {
    * Falls back to page 1 if offset not found. Returns true on success.
    */
   goToCharOffset(offset: number): boolean;
+
+  /**
+   * Returns the source data type this renderer produces.
+   * 'text' renderers produce string content; 'binary' renderers (PDF, CBZ) produce Uint8Array pages.
+   * Phase 6 binary renderers override this to return 'binary'.
+   */
+  getSourceType(): 'text' | 'binary';
 }

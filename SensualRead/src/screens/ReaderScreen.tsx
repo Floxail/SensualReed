@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pick } from '@react-native-documents/picker';
 import { useColors, useThemeToggle, Spacing, BorderRadius, Typography, Colors } from '../theme';
 import { ReaderView } from '../components/reader';
+import { ReaderSettingsSheet } from '../components/reader/ReaderSettingsSheet';
 import { PageContent, BookMetadata } from '../components/reader/renderers';
 import { TriggerEngine } from '../engines/analysis/TriggerEngine';
 import { AnalysisResult } from '../engines/analysis';
@@ -59,6 +60,7 @@ export const ReaderScreen: React.FC = () => {
   const [currentBookId, setCurrentBookId] = useState<string | null>(null);
   const [initialPage, setInitialPage] = useState<number>(1);
   const [initialCharOffset, setInitialCharOffset] = useState<number>(0);
+  const [settingsSheetVisible, setSettingsSheetVisible] = useState(false);
   const hapticService = useAppStore((state) => state.hapticService);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -357,11 +359,17 @@ export const ReaderScreen: React.FC = () => {
             )}
           </View>
 
-          <TouchableOpacity style={styles.menuButton} onPress={pickFile}>
-            <Text style={[styles.menuButtonText, { color: colors.headerText }]}>
-              +
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.aaButton}
+              onPress={() => setSettingsSheetVisible(true)}
+            >
+              <Text style={[styles.aaButtonText, { color: colors.headerText }]}>Aa</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuButton} onPress={pickFile}>
+              <Text style={[styles.menuButtonText, { color: colors.headerText }]}>+</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Reader Content */}
@@ -393,6 +401,12 @@ export const ReaderScreen: React.FC = () => {
             }
           />
         )}
+
+        {/* Reader settings bottom sheet */}
+        <ReaderSettingsSheet
+          visible={settingsSheetVisible}
+          onClose={() => setSettingsSheetVisible(false)}
+        />
       </View>
     </ErrorBoundary>
   );
@@ -449,6 +463,20 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     marginTop: 2,
     fontStyle: 'italic',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aaButton: {
+    padding: Spacing.sm,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  aaButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   menuButton: {
     padding: Spacing.sm,

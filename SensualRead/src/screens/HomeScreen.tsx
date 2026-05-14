@@ -1,7 +1,3 @@
-/**
- * HomeScreen - Library and main navigation hub
- */
-
 import React, { useState } from 'react';
 import {
   View,
@@ -15,6 +11,7 @@ import {
   Modal,
   ActivityIndicator,
   FlatList,
+  Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,13 +23,24 @@ import { bulkImportService, epubCoverExtractor, ImportCandidate } from '../servi
 import { copyBookToLibrary, getLibraryPath } from '../store/useLibraryStore';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ConnectionStatus } from '../components/ConnectionStatus';
-import { EmptyState } from '../components/EmptyState';
-import { PremiumButton } from '../components/PremiumButton';
 
 type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
-// Book card component
-const BookCard: React.FC<{
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const GRID_PADDING = 12;
+const GRID_GAP = 8;
+const CARD_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP * 2) / 3;
+const COVER_HEIGHT = CARD_WIDTH * 1.52;
+
+const FORMAT_COLORS: Record<string, string> = {
+  epub: '#FF4D7D',
+  txt: '#4CAF50',
+  pdf: '#2196F3',
+  cbz: '#FF9800',
+  cbr: '#9C27B0',
+};
+
+const BookGridCard: React.FC<{
   book: LibraryBook;
   onPress: () => void;
   onLongPress: () => void;
@@ -42,25 +50,20 @@ const BookCard: React.FC<{
     ? Math.round((book.currentPage / book.totalPages) * 100)
     : 0;
 
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const format = book.fileType || (book.filePath?.toLowerCase().endsWith('.epub') ? 'epub' : 'txt');
+  const badgeColor = FORMAT_COLORS[format] || colors.primary;
 
-    if (days === 0) return "Aujourd'hui";
-    if (days === 1) return 'Hier';
-    if (days < 7) return `Il y a ${days} jours`;
-    return date.toLocaleDateString('fr-FR');
-  };
+  const coverBg = book.coverColor || colors.surface;
 
   return (
     <TouchableOpacity
-      style={[styles.bookCard, { backgroundColor: book.coverColor || colors.surface }]}
+      style={[styles.gridCard, { backgroundColor: coverBg }]}
       onPress={onPress}
       onLongPress={onLongPress}
+      activeOpacity={0.85}
     >
-      <View style={styles.bookCover}>
+      {/* Cover */}
+      <View style={styles.coverContainer}>
         {book.coverImagePath ? (
           <Image
             source={{ uri: `file://${book.coverImagePath}` }}
@@ -68,35 +71,42 @@ const BookCard: React.FC<{
             resizeMode="cover"
           />
         ) : (
-          <Text style={styles.bookEmoji}>📚</Text>
+          <View style={[styles.coverPlaceholder, { backgroundColor: coverBg }]}>
+            <Text style={styles.coverEmoji}>📚</Text>
+          </View>
         )}
+
+        {/* Format badge — top right */}
+        <View style={[styles.formatBadge, { backgroundColor: badgeColor }]}>
+          <Text style={styles.formatBadgeText}>{format.toUpperCase()}</Text>
+        </View>
+
+        {/* Progress % — top left (only if started) */}
+        {progress > 0 && (
+          <View style={[styles.progressBadge, { backgroundColor: 'rgba(0,0,0,0.62)' }]}>
+            <Text style={styles.progressBadgeText}>{progress}%</Text>
+          </View>
+        )}
+
+        {/* Progress bar — bottom of cover */}
+        <View style={styles.coverProgressTrack}>
+          <View
+            style={[
+              styles.coverProgressFill,
+              { width: `${progress}%`, backgroundColor: colors.primary },
+            ]}
+          />
+        </View>
       </View>
-      <View style={styles.bookInfo}>
-        <Text style={[styles.bookTitle, { color: colors.text }]} numberOfLines={2}>
+
+      {/* Title */}
+      <View style={[styles.cardFooter, { backgroundColor: colors.card }]}>
+        <Text
+          style={[styles.cardTitle, { color: colors.text }]}
+          numberOfLines={2}
+        >
           {book.title}
         </Text>
-        {book.author && (
-          <Text style={[styles.bookAuthor, { color: colors.textSecondary }]} numberOfLines={1}>
-            {book.author}
-          </Text>
-        )}
-        <View style={styles.bookMeta}>
-          <Text style={[styles.bookProgress, { color: colors.textMuted }]}>
-            {progress}% • Page {book.currentPage}/{book.totalPages}
-          </Text>
-        </View>
-        <Text style={[styles.bookDate, { color: colors.textMuted }]}>
-          {formatDate(book.lastReadAt)}
-        </Text>
-      </View>
-      {/* Progress bar */}
-      <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${progress}%`, backgroundColor: colors.primary },
-          ]}
-        />
       </View>
     </TouchableOpacity>
   );
@@ -200,9 +210,7 @@ export const HomeScreen: React.FC = () => {
         {/* Header */}
         <View style={[styles.header, { backgroundColor: colors.primary, paddingTop: insets.top + 8 }]}>
           <View style={styles.headerTop}>
-            <Text style={[styles.title, { color: colors.textOnPrimary }]}>
-              SensualRead
-            </Text>
+            <Text style={[styles.title, { color: colors.textOnPrimary }]}>SensualRead</Text>
             <View style={styles.headerRight}>
               <ConnectionStatus />
               <TouchableOpacity
@@ -226,9 +234,7 @@ export const HomeScreen: React.FC = () => {
               onPress={() => navigation.navigate('Reader', undefined)}
             >
               <Text style={styles.actionIcon}>➕</Text>
-              <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>
-                Nouveau livre
-              </Text>
+              <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>Nouveau</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -236,9 +242,7 @@ export const HomeScreen: React.FC = () => {
               onPress={() => navigation.navigate('DeviceTest')}
             >
               <Text style={styles.actionIcon}>📳</Text>
-              <Text style={[styles.actionText, { color: colors.text }]}>
-                Connexion
-              </Text>
+              <Text style={[styles.actionText, { color: colors.text }]}>Connexion</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -256,39 +260,43 @@ export const HomeScreen: React.FC = () => {
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 Ma bibliothèque
               </Text>
-              {books.map((book) => (
-                <BookCard
-                  key={book.id}
-                  book={book}
-                  onPress={() => handleBookPress(book)}
-                  onLongPress={() => handleBookLongPress(book)}
-                  colors={colors}
-                />
-              ))}
+              <View style={styles.grid}>
+                {books.map((book) => (
+                  <BookGridCard
+                    key={book.id}
+                    book={book}
+                    onPress={() => handleBookPress(book)}
+                    onLongPress={() => handleBookLongPress(book)}
+                    colors={colors}
+                  />
+                ))}
+              </View>
             </View>
           ) : (
             /* Empty state */
-            <EmptyState
-              icon="📚"
-              title="Votre bibliothèque est vide"
-              subtitle="Commencez votre voyage sensoriel"
-              description="Importez un livre (EPUB ou TXT) pour explorer l'expérience SensualRead avec votre appareil Lovense."
-              action={
-                <PremiumButton
-                  onPress={() => navigation.navigate('Reader', undefined)}
-                  label="Importer un livre"
-                  icon="➕"
-                  variant="primary"
-                  size="large"
-                />
-              }
-            />
+            <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+              <Text style={styles.emptyIcon}>📚</Text>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                Bibliothèque vide
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                Importez un fichier EPUB ou TXT pour commencer
+              </Text>
+              <TouchableOpacity
+                style={[styles.emptyImportBtn, { backgroundColor: colors.primary }]}
+                onPress={() => navigation.navigate('Reader', undefined)}
+              >
+                <Text style={[styles.emptyImportBtnText, { color: colors.textOnPrimary }]}>
+                  ➕  Importer un livre
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
 
-          {/* Spacer for bottom */}
           <View style={{ height: Spacing.xl }} />
         </ScrollView>
 
+        {/* Scan modal */}
         <Modal
           visible={scanModalVisible}
           transparent
@@ -369,9 +377,7 @@ export const HomeScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     paddingBottom: Spacing.lg,
     paddingHorizontal: Spacing.md,
@@ -391,27 +397,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
-  settingsButton: {
-    padding: Spacing.sm,
-  },
-  settingsIcon: {
-    fontSize: 22,
-    color: '#fff',
-  },
-  title: {
-    ...Typography.h1,
-  },
-  subtitle: {
-    ...Typography.body,
-    marginTop: Spacing.xs,
-  },
-  content: {
-    flex: 1,
-    padding: Spacing.md,
-  },
+  settingsButton: { padding: Spacing.sm },
+  settingsIcon: { fontSize: 22, color: '#fff' },
+  title: { ...Typography.h1 },
+  subtitle: { ...Typography.body, marginTop: Spacing.xs },
+  content: { flex: 1, padding: GRID_PADDING },
   actions: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    gap: Spacing.sm,
     marginBottom: Spacing.lg,
   },
   actionButton: {
@@ -419,105 +412,112 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
     borderRadius: BorderRadius.lg,
-    gap: Spacing.sm,
+    gap: 4,
   },
-  actionIcon: {
-    fontSize: 20,
+  actionIcon: { fontSize: 16 },
+  actionText: { ...Typography.caption, fontWeight: '600' },
+  library: { marginTop: Spacing.xs },
+  sectionTitle: { ...Typography.h3, marginBottom: Spacing.md },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: GRID_GAP,
   },
-  actionText: {
-    ...Typography.button,
-  },
-  library: {
-    marginTop: Spacing.sm,
-  },
-  sectionTitle: {
-    ...Typography.h3,
-    marginBottom: Spacing.md,
-  },
-  bookCard: {
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
+  gridCard: {
+    width: CARD_WIDTH,
+    borderRadius: BorderRadius.md,
     overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
   },
-  bookCover: {
-    height: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
+  coverContainer: {
+    width: CARD_WIDTH,
+    height: COVER_HEIGHT,
+    position: 'relative',
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
-  },
-  bookEmoji: {
-    fontSize: 32,
   },
   coverImage: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
   },
-  bookInfo: {
-    padding: Spacing.md,
-    paddingTop: 0,
-  },
-  bookTitle: {
-    ...Typography.h4,
-    marginBottom: 2,
-  },
-  bookAuthor: {
-    ...Typography.bodySmall,
-    marginBottom: Spacing.xs,
-  },
-  bookMeta: {
-    flexDirection: 'row',
+  coverPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  bookProgress: {
-    ...Typography.caption,
+  coverEmoji: { fontSize: 28 },
+  formatBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  bookDate: {
-    ...Typography.caption,
-    marginTop: 2,
+  formatBadgeText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  progressBar: {
+  progressBadge: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  progressBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  coverProgressTrack: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     height: 3,
-    width: '100%',
+    backgroundColor: 'rgba(0,0,0,0.25)',
   },
-  progressFill: {
+  coverProgressFill: {
     height: '100%',
   },
+  cardFooter: {
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  cardTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    lineHeight: 15,
+  },
+  // Empty state
   emptyState: {
+    marginTop: Spacing.xl,
     borderRadius: BorderRadius.xl,
     padding: Spacing.xl,
     alignItems: 'center',
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: Spacing.md,
+  emptyIcon: { fontSize: 56, marginBottom: Spacing.md },
+  emptyTitle: { ...Typography.h3, marginBottom: Spacing.sm, textAlign: 'center' },
+  emptySubtitle: { ...Typography.body, textAlign: 'center', marginBottom: Spacing.xl },
+  emptyImportBtn: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.lg,
   },
-  emptyTitle: {
-    ...Typography.h3,
-    marginBottom: Spacing.sm,
-    textAlign: 'center',
-  },
-  emptyText: {
-    ...Typography.body,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
-  },
-  howItWorks: {
-    width: '100%',
-    paddingTop: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  howTitle: {
-    ...Typography.h4,
-    marginBottom: Spacing.md,
-  },
-  howStep: {
-    ...Typography.body,
-    marginBottom: Spacing.sm,
-  },
+  emptyImportBtnText: { ...Typography.button },
+  // Scan modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -529,24 +529,10 @@ const styles = StyleSheet.create({
     padding: 20,
     maxHeight: '70%',
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginVertical: 20,
-  },
-  modalCenter: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  candidateList: {
-    maxHeight: 300,
-    marginBottom: 12,
-  },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  modalSubtitle: { fontSize: 14, textAlign: 'center', marginVertical: 20 },
+  modalCenter: { alignItems: 'center', paddingVertical: 20 },
+  candidateList: { maxHeight: 300, marginBottom: 12 },
   candidateRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -562,14 +548,8 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     marginRight: 12,
   },
-  candidateName: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  candidateSize: {
-    fontSize: 12,
-    marginTop: 2,
-  },
+  candidateName: { fontSize: 14, fontWeight: '500' },
+  candidateSize: { fontSize: 12, marginTop: 2 },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

@@ -208,6 +208,10 @@ export class EpubRenderer implements IRenderer {
     return this.goToPage(targetPage);
   }
 
+  getSourceType(): 'text' | 'binary' {
+    return 'text';
+  }
+
   /**
    * Parse container.xml to find the OPF file location
    */

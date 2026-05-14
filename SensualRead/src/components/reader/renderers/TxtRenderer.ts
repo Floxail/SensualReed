@@ -196,6 +196,10 @@ export class TxtRenderer implements IRenderer {
     return this.goToPage(targetPage);
   }
 
+  getSourceType(): 'text' | 'binary' {
+    return 'text';
+  }
+
   /**
    * Get full text content (for search, etc.)
    */

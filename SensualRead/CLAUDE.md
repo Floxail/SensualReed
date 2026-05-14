@@ -1,7 +1,7 @@
 # CLAUDE.md - SensualRead Project Memory
 
 > **RULE**: Always read this file at the start of each session. Always update it at the end.
-> **VERSIONING RULE**: Current version = **v0.17**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
+> **VERSIONING RULE**: Current version = **v0.19**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
 
 ---
 
@@ -23,19 +23,26 @@ SensualRead is a mobile e-reader that triggers Lovense toy vibrations based on e
 - [x] **v0.16** — Scroll blocked in reader: replaced `TouchableOpacity` wrapper around `ScrollView` with plain `View` + two absolute-positioned tap overlays (left/right 25% zones)
 - [x] **v0.17** — Blank pages after reinstall: race condition in `ReaderView` where `onLayout` fired before renderer loaded → `recalcCharsPerPage` returned early → default `charsPerPage=1500` used forever. Fixed by calling `recalcCharsPerPage()` in `loadFile` after renderer loads and listener subscribed.
 
-### Phase 5.5: Ultra-Stability (COMPLETE — v0.18)
+### Phase 5.5: Ultra-Stability + Refonte Visuelle (COMPLETE — v0.18 → v0.19)
 - [x] **Snapshot System** — `charOffset` (char position at page start) stored alongside `currentPage` in `LibraryBook`. Renderers expose `getCurrentCharOffset()` / `goToCharOffset(offset)`. On resume, precise text position used instead of page number (immune to `charsPerPage` changes from font changes). `pageInfo` state in `ReaderScreen` now includes `charOffset` so AppState background saves are also offset-accurate.
 - [x] **Ready-Gate UI** — `ReaderView` shows `ActivityIndicator` overlay until `onLayout` fires with valid dimensions (`dimsReady` state). 500ms safety timeout fallback. Gate resets on new book load (`setDimsReady(false)` in filePath effect). User never sees flash of mis-paginated text.
 - [x] **AppState Persistence** — `ReaderScreen` subscribes to `AppState.addEventListener('change')`. When app goes `background` or `inactive`, `updateProgress` is called immediately with latest page + charOffset. Ensures position is saved even if user hard-closes app without turning a page.
 - [x] **Adaptive Buffering** — `TriggerEngine.processContent` fallback path (no cache hit) now deferred via `setTimeout(..., 0)`. Text truncated to first 4000 chars before analysis in all paths. Zero-lag cache-hit path untouched (still synchronous). Analysis never blocks the main thread during page-turn animation.
+- [x] **Grid Library (v0.19)** — `HomeScreen` redesigned with 3-column `flexWrap` grid. `BookGridCard` shows portrait cover, format badge (EPUB/TXT in color), progress % badge, progress bar overlay, elevation:4 shadow. Empty state with inline import button (no deps on EmptyState/PremiumButton).
+- [x] **Jitter Protection (v0.19)** — Tap zones in `ReaderView` replaced with plain `View` + `onTouchStart/Move/End` handlers. Page turn only fires if movement < 10px horizontal AND < 14px vertical. Eliminates false page turns during scroll.
+- [x] **BottomSheet Reader Settings (v0.19)** — `ReaderSettingsSheet` component: slides in from bottom via `Animated.timing`, backdrop dismiss. Controls: font size, line height, font family, margins (small/medium/large), brightness dim overlay (4 levels: 0/0.15/0.35/0.55). Triggered by "Aa" button in reader header.
+- [x] **Brightness Dim Overlay (v0.19)** — `readerDimOverlay` (0–0.7) stored in `AppSettings`. `ReaderView` renders absolute-fill black `View` with that opacity, `pointerEvents="none"`.
+- [x] **Adaptive Margins (v0.19)** — `readerMargins` ('small'/'medium'/'large') maps to 8/16/28px reader padding. Applied dynamically in `ReaderView` scrollContent.
+- [x] **IRenderer Binary Prep (v0.19)** — `PageContent.binaryData?: Uint8Array` added. `IRenderer.getSourceType()` method added. TxtRenderer + EpubRenderer return `'text'`. Phase 6 PDF/CBZ renderers override to `'binary'`.
+- [x] **services/parsers Architecture (v0.19)** — `IParser` interface + `TxtParser` + `EpubParser` stubs created in `src/services/parsers/`. Separates file I/O from renderer pagination logic (Book Story–style data/parser/ pattern). Phase 6 will wire renderers to parsers.
 
 ### Planned Phases (plans written, not yet executed)
 - [ ] **Phase 6** — PDF + CBZ/CBR renderer support → `docs/superpowers/plans/2026-05-13-phase6-multiformat-pdf-cbz.md`
 - [ ] **Phase 7** — OPDS catalog client (download books from catalogs) → `docs/superpowers/plans/2026-05-13-phase7-opds-client.md`
 - [ ] **Phase 8** — Lovense profiles + smarter AI-style text analysis → `docs/superpowers/plans/2026-05-13-phase8-lovense-profiles-ai-analysis.md`
 
-**Current phase**: 5.5 Ultra-Stability COMPLETE → **Phase 6 READY**
-**Current APK**: `SensualRead-v0.18.apk` (~128 MB)
+**Current phase**: 5.5 Visual Premium COMPLETE → **Phase 6 READY**
+**Current APK**: `SensualRead-v0.19.apk` (to build)
 
 ---
 
@@ -138,6 +145,7 @@ SensualRead/
 │   ├── components/
 │   │   ├── reader/
 │   │   │   ├── ReaderView.tsx           # Main reader component
+│   │   │   ├── ReaderSettingsSheet.tsx  # BottomSheet: font/lh/margins/dim (v0.19)
 │   │   │   ├── renderers/
 │   │   │   │   ├── IRenderer.ts
 │   │   │   │   ├── TxtRenderer.ts       # ✓ plain text + pagination
@@ -161,6 +169,12 @@ SensualRead/
 │   │   └── library/
 │   │       ├── EpubCoverExtractor.ts    # ✓ extracts cover from EPUB
 │   │       ├── BulkImportService.ts     # ✓ scans device folders
+│   │       ├── index.ts
+│   │       └── (see services/parsers/ below)
+│   │   └── parsers/                     # Phase 6 prep — file I/O decoupled from renderers
+│   │       ├── IParser.ts               # Interface: parse() → ParsedBook
+│   │       ├── TxtParser.ts             # .txt paragraph extraction
+│   │       ├── EpubParser.ts            # .epub stub (Phase 6)
 │   │       └── index.ts
 │   │
 │   ├── store/
@@ -244,6 +258,17 @@ npx react-native run-android
 ---
 
 ## Session History (recent → old)
+
+### 2026-05-14 — v0.19 — Phase 5.5 Visual Premium + Phase 6 Prep
+- **HomeScreen Grid**: 3-col flexWrap grid, BookGridCard with cover fill, format badge, progress overlay, elevation:4
+- **Empty State**: inline (no PremiumButton dep), import button CTA
+- **Jitter Protection**: View + touch tracking (dx>10 || dy>14 = scroll, not tap)
+- **BottomSheet**: `ReaderSettingsSheet` — Animated slide-in, font size/lh/family/margins/dim
+- **Brightness**: `readerDimOverlay` in AppSettings → absolute black overlay with pointer-events:none
+- **Margins**: `readerMargins` small/medium/large → 8/16/28px reader padding
+- **IRenderer Binary Prep**: `binaryData?` in PageContent, `getSourceType()` on IRenderer
+- **services/parsers**: IParser + TxtParser + EpubParser stubs for Phase 6 decoupling
+- **Files**: HomeScreen.tsx, ReaderView.tsx, ReaderScreen.tsx, ReaderSettingsSheet.tsx (new), IRenderer.ts, TxtRenderer.ts, EpubRenderer.ts, types/index.ts, useAppStore.ts, SettingsScreen.tsx, services/parsers/
 
 ### 2026-05-14 — v0.18 — Phase 5.5 Ultra-Stability
 - **Snapshot System**: `charOffset` in `LibraryBook`, `pageOffsets[]` in TxtRenderer/EpubRenderer, `goToCharOffset()` API on IRenderer; `pageInfo` in ReaderScreen now tracks charOffset; AppState save includes charOffset

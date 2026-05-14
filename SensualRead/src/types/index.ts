@@ -35,6 +35,10 @@ export interface AppSettings {
   // Analysis settings
   analysisEnabled: boolean;
   customKeywords: string[]; // User-added keywords
+
+  // Reader display settings
+  readerMargins: 'small' | 'medium' | 'large';
+  readerDimOverlay: number; // 0.0–0.7 screen dim (brightness control)
 }
 
 export interface ConnectionState {

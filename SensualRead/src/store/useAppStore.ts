@@ -66,6 +66,8 @@ const defaultSettings: AppSettings = {
   lineHeight: 1.6,
   analysisEnabled: true,
   customKeywords: [],
+  readerMargins: 'medium',
+  readerDimOverlay: 0,
 };
 
 export const useAppStore = create<AppState>((set) => ({

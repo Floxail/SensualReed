@@ -19,6 +19,12 @@ import { useAppStore } from '../../store/useAppStore';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TAP_ZONE_WIDTH = SCREEN_WIDTH * 0.25;
 
+const MARGIN_MAP: Record<string, number> = {
+  small: 8,
+  medium: 16,
+  large: 28,
+};
+
 const CHAR_WIDTH_RATIO: Record<string, number> = {
   'serif': 0.50,
   'sans-serif': 0.48,
@@ -86,6 +92,8 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const containerDims = useRef({ width: 0, height: 0 });
   const slideAnim = useRef(new Animated.Value(0)).current;
   const isAnimating = useRef(false);
+  const tapLeftTouch = useRef({ startX: 0, startY: 0, moved: false });
+  const tapRightTouch = useRef({ startX: 0, startY: 0, moved: false });
 
   const [state, setState] = useState<ReaderState>({
     current: 0,
@@ -300,6 +308,8 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     );
   }
 
+  const readerPadding = MARGIN_MAP[settings.readerMargins ?? 'medium'] ?? 16;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.readerBackground }]}>
       {/* Content area — overflow:hidden clips the slide animation */}
@@ -309,7 +319,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
             <ScrollView
               ref={scrollViewRef}
               style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[styles.scrollContent, { padding: readerPadding, paddingBottom: readerPadding + 24 }]}
               showsVerticalScrollIndicator={false}
             >
               <PageText
@@ -320,20 +330,58 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
                 fontFamily={settings.fontFamily}
               />
             </ScrollView>
-            {/* Invisible tap zones for page navigation — don't block scroll */}
-            <TouchableOpacity
-              activeOpacity={1}
+            {/* Tap zones with jitter protection — ignore touches that moved > 10px */}
+            <View
               style={styles.tapZoneLeft}
-              onPress={() => animateAndTurnPage('prev')}
+              onTouchStart={(e) => {
+                tapLeftTouch.current = {
+                  startX: e.nativeEvent.pageX,
+                  startY: e.nativeEvent.pageY,
+                  moved: false,
+                };
+              }}
+              onTouchMove={(e) => {
+                const dx = Math.abs(e.nativeEvent.pageX - tapLeftTouch.current.startX);
+                const dy = Math.abs(e.nativeEvent.pageY - tapLeftTouch.current.startY);
+                if (dx > 10 || dy > 14) tapLeftTouch.current.moved = true;
+              }}
+              onTouchEnd={() => {
+                if (!tapLeftTouch.current.moved) animateAndTurnPage('prev');
+              }}
             />
-            <TouchableOpacity
-              activeOpacity={1}
+            <View
               style={styles.tapZoneRight}
-              onPress={() => animateAndTurnPage('next')}
+              onTouchStart={(e) => {
+                tapRightTouch.current = {
+                  startX: e.nativeEvent.pageX,
+                  startY: e.nativeEvent.pageY,
+                  moved: false,
+                };
+              }}
+              onTouchMove={(e) => {
+                const dx = Math.abs(e.nativeEvent.pageX - tapRightTouch.current.startX);
+                const dy = Math.abs(e.nativeEvent.pageY - tapRightTouch.current.startY);
+                if (dx > 10 || dy > 14) tapRightTouch.current.moved = true;
+              }}
+              onTouchEnd={() => {
+                if (!tapRightTouch.current.moved) animateAndTurnPage('next');
+              }}
             />
           </View>
         </Animated.View>
       </View>
+
+      {/* Brightness dim overlay */}
+      {(settings.readerDimOverlay ?? 0) > 0 && (
+        <View
+          style={[
+            StyleSheet.absoluteFillObject,
+            styles.dimOverlay,
+            { opacity: settings.readerDimOverlay },
+          ]}
+          pointerEvents="none"
+        />
+      )}
 
       {/* Bottom Navigation */}
       <View style={[styles.navigation, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + Spacing.sm }]}>
@@ -492,6 +540,10 @@ const styles = StyleSheet.create({
   readyGate: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  dimOverlay: {
+    backgroundColor: '#000',
+    zIndex: 10,
   },
 });
 
