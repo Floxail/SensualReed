@@ -84,7 +84,6 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const flatListRef = useRef<FlatList<ParagraphItem>>(null);
   const scrollOffsetRef = useRef(0);
   const containerHeightRef = useRef(0);
-  const pendingScrollIndexRef = useRef<number | null>(null);
   const tapLeftTouch = useRef({ startX: 0, startY: 0, moved: false });
   const tapRightTouch = useRef({ startX: 0, startY: 0, moved: false });
 
@@ -99,6 +98,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [progress, setProgress] = useState({ current: 1, total: 1, charOffset: 0 });
+  const [initialScrollIndex, setInitialScrollIndex] = useState(0);
 
   useEffect(() => {
     paragraphsRef.current = paragraphs;
@@ -130,8 +130,8 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     setIsLoading(true);
     setLoadError(null);
     setParagraphs([]);
+    setInitialScrollIndex(0);
     scrollOffsetRef.current = 0;
-    pendingScrollIndexRef.current = null;
 
     try {
       const renderer = getRendererForFile(path);
@@ -156,7 +156,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         startIndex = idx >= 0 ? idx : 0;
       }
 
-      if (startIndex > 0) pendingScrollIndexRef.current = startIndex;
+      setInitialScrollIndex(startIndex);
 
       const metadata = renderer.getMetadata();
       if (metadata) onMetadataLoaded?.(metadata);
@@ -177,20 +177,6 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       onError?.(e);
     }
   }, [parseParagraphs, onMetadataLoaded, onContentChange, onPageChange, onError]);
-
-  // Scroll to pending position after paragraphs render
-  useEffect(() => {
-    if (paragraphs.length > 0 && pendingScrollIndexRef.current !== null) {
-      const targetIndex = pendingScrollIndexRef.current;
-      pendingScrollIndexRef.current = null;
-      const estimatedOffset = estimatedParaHeight * targetIndex;
-      // Small delay to let FlatList render before scrolling
-      const timer = setTimeout(() => {
-        flatListRef.current?.scrollToOffset({ offset: estimatedOffset, animated: false });
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [paragraphs.length, estimatedParaHeight]);
 
   useEffect(() => {
     if (filePath) {
@@ -288,6 +274,14 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         getItemLayout={getItemLayout}
+        initialScrollIndex={initialScrollIndex > 0 ? initialScrollIndex : undefined}
+        onScrollToIndexFailed={(info) => {
+          const offset = info.averageItemLength * info.index;
+          flatListRef.current?.scrollToOffset({ offset, animated: false });
+          setTimeout(() => {
+            flatListRef.current?.scrollToIndex({ index: info.index, animated: false });
+          }, 200);
+        }}
         onViewableItemsChanged={handleViewableItemsChanged}
         viewabilityConfig={viewabilityConfig.current}
         onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
