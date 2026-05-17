@@ -1,7 +1,7 @@
 # CLAUDE.md - SensualRead Project Memory
 
 > **RULE**: Always read this file at the start of each session. Always update it at the end.
-> **VERSIONING RULE**: Current version = **v0.30**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
+> **VERSIONING RULE**: Current version = **v0.32**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
 
 ---
 
@@ -60,7 +60,7 @@ SensualRead is a mobile e-reader that triggers Lovense toy vibrations based on e
 - [ ] **Phase 7** — OPDS catalog client (download books from catalogs) → `docs/superpowers/plans/2026-05-13-phase7-opds-client.md`
 
 **Current phase**: Phase 8 On-Device AI COMPLETE → **Phase 6 READY**
-**Current APK**: `SensualRead-v0.31.apk` (to build)
+**Current APK**: `SensualRead-v0.32.apk` (to build)
 
 ---
 
@@ -277,6 +277,13 @@ npx react-native run-android
 ---
 
 ## Session History (recent → old)
+
+### 2026-05-17 — v0.32 — Reading Progress Persistence UI
+- **Already implemented**: `useLibraryStore` had `currentPage`, `charOffset`, `lastReadAt`, `updateProgress()`, Zustand persist with AsyncStorage — fully functional since v0.18
+- **Already implemented**: `ReaderScreen.handlePageChange` calls `updateProgress()` on every scroll; AppState listener saves on background
+- **Already implemented**: book load in ReaderScreen restores `initialPage` + `initialCharOffset` from store
+- **Added**: `BookGridCard` footer now shows "▶ Lire" pill (surface) or "↩ Reprendre" pill (primary color) based on `progress > 0`
+- **Already present**: progress % badge and progress bar overlay on covers (since v0.19 grid)
 
 ### 2026-05-15 — v0.31 — Phase 8.5: Continuous Scroll Reader (book-story inspired)
 - **Motivation**: blank pages on BlueStacks (bad charsPerPage calc) + visible slide animation

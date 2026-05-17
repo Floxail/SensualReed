@@ -99,7 +99,7 @@ const BookGridCard: React.FC<{
         </View>
       </View>
 
-      {/* Title */}
+      {/* Title + action label */}
       <View style={[styles.cardFooter, { backgroundColor: colors.card }]}>
         <Text
           style={[styles.cardTitle, { color: colors.text }]}
@@ -107,6 +107,11 @@ const BookGridCard: React.FC<{
         >
           {book.title}
         </Text>
+        <View style={[styles.cardAction, { backgroundColor: progress > 0 ? colors.primary : colors.surface }]}>
+          <Text style={[styles.cardActionText, { color: progress > 0 ? '#fff' : colors.textMuted }]}>
+            {progress > 0 ? '↩ Reprendre' : '▶ Lire'}
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -500,6 +505,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     lineHeight: 15,
+  },
+  cardAction: {
+    marginTop: 4,
+    borderRadius: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    alignSelf: 'flex-start',
+  },
+  cardActionText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   // Empty state
   emptyState: {
