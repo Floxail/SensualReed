@@ -263,7 +263,7 @@ export const SettingsScreen: React.FC = () => {
         <View style={[styles.section, { backgroundColor: colors.card }]}>
           <SettingRow
             label="SensualRead"
-            value="Version 0.34"
+            value="Version 0.35"
             colors={colors}
           />
 

@@ -4,12 +4,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   ActivityIndicator,
   Dimensions,
   ViewToken,
-  ListRenderItemInfo,
 } from 'react-native';
+import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IRenderer, PageContent, BookMetadata } from './renderers/IRenderer';
 import { getRendererForFile } from './renderers';
@@ -81,7 +80,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const insets = useSafeAreaInsets();
 
   const rendererRef = useRef<IRenderer | null>(null);
-  const flatListRef = useRef<FlatList<ParagraphItem>>(null);
+  const flatListRef = useRef<FlashList<ParagraphItem>>(null);
   const scrollOffsetRef = useRef(0);
   const containerHeightRef = useRef(0);
   const tapLeftTouch = useRef({ startX: 0, startY: 0, moved: false });
@@ -105,7 +104,6 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   }, [paragraphs]);
 
   const readerPadding = MARGIN_MAP[settings.readerMargins ?? 'medium'] ?? 16;
-  // Rough height estimate per paragraph — used for scroll position restoration
   const estimatedParaHeight = Math.round(settings.fontSize * settings.lineHeight * 4 + settings.fontSize * 0.8);
 
   const parseParagraphs = useCallback((text: string): ParagraphItem[] => {
@@ -187,7 +185,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     };
   }, [filePath]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Stable handler — cannot be reassigned after FlatList mount
+  // Stable handler — cannot be reassigned after FlashList mount
   const handleViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     if (!viewableItems.length) return;
     const paras = paragraphsRef.current;
@@ -212,12 +210,6 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   }).current;
 
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 15 });
-
-  const getItemLayout = useCallback((_: unknown, index: number) => ({
-    length: estimatedParaHeight,
-    offset: estimatedParaHeight * index,
-    index,
-  }), [estimatedParaHeight]);
 
   const renderItem = useCallback(({ item }: ListRenderItemInfo<ParagraphItem>) => (
     <ParagraphText
@@ -268,26 +260,17 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
       onLayout={(e) => { containerHeightRef.current = e.nativeEvent.layout.height; }}
     >
       {/* Continuous paragraph list — book-story style */}
-      <FlatList
+      <FlashList
         ref={flatListRef}
         data={paragraphs}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
-        getItemLayout={getItemLayout}
+        estimatedItemSize={estimatedParaHeight}
         initialScrollIndex={initialScrollIndex ?? undefined}
-        onScrollToIndexFailed={(info) => {
-          new Promise(resolve => setTimeout(resolve, 100)).then(() => {
-            flatListRef.current?.scrollToIndex({ index: info.index, animated: false });
-          });
-        }}
         onViewableItemsChanged={handleViewableItemsChanged}
         viewabilityConfig={viewabilityConfig.current}
         onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
         scrollEventThrottle={100}
-        initialNumToRender={25}
-        maxToRenderPerBatch={15}
-        windowSize={7}
-        removeClippedSubviews
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
         showsVerticalScrollIndicator={false}
       />

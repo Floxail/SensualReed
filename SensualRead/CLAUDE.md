@@ -1,7 +1,7 @@
 # CLAUDE.md - SensualRead Project Memory
 
 > **RULE**: Always read this file at the start of each session. Always update it at the end.
-> **VERSIONING RULE**: Current version = **v0.34**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
+> **VERSIONING RULE**: Current version = **v0.35**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
 
 ---
 
@@ -60,7 +60,7 @@ SensualRead is a mobile e-reader that triggers Lovense toy vibrations based on e
 - [ ] **Phase 7** — OPDS catalog client (download books from catalogs) → `docs/superpowers/plans/2026-05-13-phase7-opds-client.md`
 
 **Current phase**: Phase 8 On-Device AI COMPLETE → **Phase 6 READY**
-**Current APK**: `SensualRead-v0.34.apk` (to build)
+**Current APK**: `SensualRead-v0.35.apk` (to build)
 
 ---
 
@@ -118,15 +118,15 @@ Dark:  primary=#FF80A0, bg=#121212, surface=#1E1E1E, readerBg=#121212
 Pink scale: #FFF0F5 → #FF4D7D → #800031
 ```
 
-### ADR-007: Continuous Scroll Reader — UPDATED v0.31 ✓
+### ADR-007: Continuous Scroll Reader — UPDATED v0.35 ✓
 ```
-Architecture: FlatList of paragraphs (no pages, no charsPerPage)
+Architecture: FlashList of paragraphs (no pages, no charsPerPage) — migrated from FlatList v0.35
 Paragraph split: fullText.split(/\n\n+/) → ParagraphItem{id, text, charOffset}
 Tap zones: left 25% = scroll up 90% height, right 25% = scroll down 90% height
-Position: charOffset → paragraph binary search → initialScrollIndex (number|null) on FlatList mount; onScrollToIndexFailed Promise(100ms).then(scrollToIndex) fallback
+Position: charOffset → paragraph binary search → initialScrollIndex (number|null) on FlashList mount
 TriggerEngine: onViewableItemsChanged → processContent(visible paragraphs), preloadContent(next 8)
 Progress: paragraphIndex / totalParagraphs → % display
-getItemLayout: estimatedHeight = fontSize × lineHeight × 4 (rough, for FlatList optimization)
+estimatedItemSize: fontSize × lineHeight × 4 → passed to FlashList for view recycling optimization
 ```
 
 ### ADR-008: Library Persistence — IMPLEMENTED ✓
@@ -277,6 +277,15 @@ npx react-native run-android
 ---
 
 ## Session History (recent → old)
+
+### 2026-05-17 — v0.35 — Pro-Level Scrolling Performance (FlatList → FlashList)
+- **Migration**: `FlatList` → `@shopify/flash-list` `FlashList` — eliminates blanking during fast scroll via native view recycling
+- **Import**: `FlashList`, `ListRenderItemInfo` from `@shopify/flash-list`; `ViewToken` stays from `react-native`
+- **Removed**: `getItemLayout` callback (FlashList manages internally), `onScrollToIndexFailed` (FlashList robust natively), `initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, `removeClippedSubviews` (FlatList-specific props)
+- **Added**: `estimatedItemSize={estimatedParaHeight}` (required FlashList prop)
+- **Ref type**: `useRef<FlashList<ParagraphItem>>(null)` — `scrollToOffset`/`scrollToIndex` API unchanged
+- **`ParagraphText`**: already `React.memo` — FlashList recycling fully effective
+- **Files**: `ReaderView.tsx`, `SettingsScreen.tsx` (version bump), `CLAUDE.md`
 
 ### 2026-05-17 — v0.34 — Refactor Reading Position Restoration
 - **Refinement of v0.33**: `initialScrollIndex` state typed `number | null` instead of `number`
