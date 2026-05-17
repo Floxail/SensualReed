@@ -98,7 +98,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [progress, setProgress] = useState({ current: 1, total: 1, charOffset: 0 });
-  const [initialScrollIndex, setInitialScrollIndex] = useState(0);
+  const [initialScrollIndex, setInitialScrollIndex] = useState<number | null>(null);
 
   useEffect(() => {
     paragraphsRef.current = paragraphs;
@@ -130,7 +130,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
     setIsLoading(true);
     setLoadError(null);
     setParagraphs([]);
-    setInitialScrollIndex(0);
+    setInitialScrollIndex(null);
     scrollOffsetRef.current = 0;
 
     try {
@@ -156,7 +156,7 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         startIndex = idx >= 0 ? idx : 0;
       }
 
-      setInitialScrollIndex(startIndex);
+      setInitialScrollIndex(startIndex > 0 ? startIndex : null);
 
       const metadata = renderer.getMetadata();
       if (metadata) onMetadataLoaded?.(metadata);
@@ -274,13 +274,11 @@ export const ReaderView: React.FC<ReaderViewProps> = ({
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         getItemLayout={getItemLayout}
-        initialScrollIndex={initialScrollIndex > 0 ? initialScrollIndex : undefined}
+        initialScrollIndex={initialScrollIndex ?? undefined}
         onScrollToIndexFailed={(info) => {
-          const offset = info.averageItemLength * info.index;
-          flatListRef.current?.scrollToOffset({ offset, animated: false });
-          setTimeout(() => {
+          new Promise(resolve => setTimeout(resolve, 100)).then(() => {
             flatListRef.current?.scrollToIndex({ index: info.index, animated: false });
-          }, 200);
+          });
         }}
         onViewableItemsChanged={handleViewableItemsChanged}
         viewabilityConfig={viewabilityConfig.current}

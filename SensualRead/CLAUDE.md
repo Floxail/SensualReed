@@ -1,7 +1,7 @@
 # CLAUDE.md - SensualRead Project Memory
 
 > **RULE**: Always read this file at the start of each session. Always update it at the end.
-> **VERSIONING RULE**: Current version = **v0.33**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
+> **VERSIONING RULE**: Current version = **v0.34**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
 
 ---
 
@@ -60,7 +60,7 @@ SensualRead is a mobile e-reader that triggers Lovense toy vibrations based on e
 - [ ] **Phase 7** — OPDS catalog client (download books from catalogs) → `docs/superpowers/plans/2026-05-13-phase7-opds-client.md`
 
 **Current phase**: Phase 8 On-Device AI COMPLETE → **Phase 6 READY**
-**Current APK**: `SensualRead-v0.33.apk` (to build)
+**Current APK**: `SensualRead-v0.34.apk` (to build)
 
 ---
 
@@ -123,7 +123,7 @@ Pink scale: #FFF0F5 → #FF4D7D → #800031
 Architecture: FlatList of paragraphs (no pages, no charsPerPage)
 Paragraph split: fullText.split(/\n\n+/) → ParagraphItem{id, text, charOffset}
 Tap zones: left 25% = scroll up 90% height, right 25% = scroll down 90% height
-Position: charOffset → paragraph binary search → initialScrollIndex on FlatList mount; onScrollToIndexFailed fallback scrolls by averageItemLength then retries scrollToIndex
+Position: charOffset → paragraph binary search → initialScrollIndex (number|null) on FlatList mount; onScrollToIndexFailed Promise(100ms).then(scrollToIndex) fallback
 TriggerEngine: onViewableItemsChanged → processContent(visible paragraphs), preloadContent(next 8)
 Progress: paragraphIndex / totalParagraphs → % display
 getItemLayout: estimatedHeight = fontSize × lineHeight × 4 (rough, for FlatList optimization)
@@ -277,6 +277,14 @@ npx react-native run-android
 ---
 
 ## Session History (recent → old)
+
+### 2026-05-17 — v0.34 — Refactor Reading Position Restoration
+- **Refinement of v0.33**: `initialScrollIndex` state typed `number | null` instead of `number`
+- **Reset**: `setInitialScrollIndex(null)` at `loadFile` start (null = no scroll, cleaner than 0)
+- **Set**: `setInitialScrollIndex(startIndex > 0 ? startIndex : null)` — null for index 0 (top of book)
+- **FlatList prop**: `initialScrollIndex={initialScrollIndex ?? undefined}` — null → undefined → no scroll applied
+- **`onScrollToIndexFailed`**: replaced two-step `scrollToOffset + setTimeout(scrollToIndex, 200)` with `new Promise(resolve => setTimeout(resolve, 100)).then(() => scrollToIndex)` — single retry, no intermediate pixel offset guess
+- **Files**: `ReaderView.tsx`, `SettingsScreen.tsx` (version bump), `CLAUDE.md`
 
 ### 2026-05-17 — v0.33 — Fix Position Restoration
 - **Bug**: resuming a large book re-opened from the beginning — `estimatedParaHeight × targetIndex` scrolled to wrong pixel, FlatList snapped back to top because items at that offset weren't rendered yet
