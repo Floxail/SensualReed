@@ -212,6 +212,10 @@ export class EpubRenderer implements IRenderer {
     return 'text';
   }
 
+  getFullText(): string {
+    return this.chapters.map(ch => ch.content).join('\n\n');
+  }
+
   /**
    * Parse container.xml to find the OPF file location
    */

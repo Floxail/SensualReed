@@ -131,4 +131,10 @@ export interface IRenderer {
    * Phase 6 binary renderers override this to return 'binary'.
    */
   getSourceType(): 'text' | 'binary';
+
+  /**
+   * Returns the full plain text of the book as a single string.
+   * Used by ReaderView for continuous-scroll paragraph rendering.
+   */
+  getFullText(): string;
 }

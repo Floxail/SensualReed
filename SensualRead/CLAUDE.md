@@ -1,7 +1,7 @@
 # CLAUDE.md - SensualRead Project Memory
 
 > **RULE**: Always read this file at the start of each session. Always update it at the end.
-> **VERSIONING RULE**: Current version = **v0.19**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
+> **VERSIONING RULE**: Current version = **v0.30**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
 
 ---
 
@@ -36,13 +36,31 @@ SensualRead is a mobile e-reader that triggers Lovense toy vibrations based on e
 - [x] **IRenderer Binary Prep (v0.19)** — `PageContent.binaryData?: Uint8Array` added. `IRenderer.getSourceType()` method added. TxtRenderer + EpubRenderer return `'text'`. Phase 6 PDF/CBZ renderers override to `'binary'`.
 - [x] **services/parsers Architecture (v0.19)** — `IParser` interface + `TxtParser` + `EpubParser` stubs created in `src/services/parsers/`. Separates file I/O from renderer pagination logic (Book Story–style data/parser/ pattern). Phase 6 will wire renderers to parsers.
 
+### Phase 8.5: Continuous Scroll Reader — book-story inspired (COMPLETE — v0.31)
+- [x] **Removed pagination** — `charsPerPage` / page buffer / slide animation eliminated
+- [x] **FlatList of paragraphs** — `getFullText()` → `split(/\n\n+/)` → one `ParagraphText` item per paragraph
+- [x] **Zero blank pages** — no page sizing math, Compose-style lazy rendering
+- [x] **Tap zones** — left tap = scroll ↑ by 90% of screen height, right tap = scroll ↓
+- [x] **Stable viewable handler** — `onViewableItemsChanged` uses ref pattern; updates TriggerEngine with visible text + preloads next 8 paragraphs
+- [x] **Position restore** — `charOffset` → binary search on paragraph `charOffset` array → `scrollToOffset` after 150ms
+- [x] **Progress** — shows `X%` instead of `X/Y pages`; `onPageChange` fires with `(paragraphIndex, totalParagraphs, charOffset)`
+- [x] `IRenderer.getFullText()` added to interface; `EpubRenderer` + `TxtRenderer` implement it
+
+### Phase 8: On-Device AI Contextual Scoring (COMPLETE — v0.30)
+- [x] **CamemBERT ONNX INT8** — `lovense_camembert.onnx` (~106 MB) in `android/app/src/main/assets/models/`
+- [x] **OnDeviceAIAnalyzer** — Implements `ITriggerEngine`. `initialize()` copies model from assets on first launch. `preloadAsync(text)` runs ONNX inference async. `analyze()` returns cached score synchronously (zero lag).
+- [x] **Hot-Swap Fallback** — `TriggerEngine` starts with `KeywordAnalyzer`, calls `_initAI()` on construction. On AI ready → swaps `this.analyzer` to `OnDeviceAIAnalyzer` seamlessly.
+- [x] **Triple-Buffer Integration** — `TriggerEngine.preloadContent()` now calls `aiAnalyzer.preloadAsync(text)` for page N+1, then caches `analyze()` result. AI inference never blocks main thread.
+- [x] **CamembertTokenizer** — Pure JS BPE tokenizer loading `tokenizer.json` from DocumentDirectory. Metaspace pre-tokenization, ▁ prefix, pad to MAX_LEN=128.
+- [x] **AI Badge** — `ReaderScreen` shows `✦ AI` label when AI model hot-swaps in (replaces keyword display).
+- [x] **Startup Sequence**: (1) App opens → KeywordAnalyzer active; (2) ONNX session created async (~5s first launch, instant after); (3) Hot-swap fires silently; (4) All subsequent page turns use AI scoring.
+
 ### Planned Phases (plans written, not yet executed)
 - [ ] **Phase 6** — PDF + CBZ/CBR renderer support → `docs/superpowers/plans/2026-05-13-phase6-multiformat-pdf-cbz.md`
 - [ ] **Phase 7** — OPDS catalog client (download books from catalogs) → `docs/superpowers/plans/2026-05-13-phase7-opds-client.md`
-- [ ] **Phase 8** — Lovense profiles + smarter AI-style text analysis → `docs/superpowers/plans/2026-05-13-phase8-lovense-profiles-ai-analysis.md`
 
-**Current phase**: 5.5 Visual Premium COMPLETE → **Phase 6 READY**
-**Current APK**: `SensualRead-v0.19.apk` (to build)
+**Current phase**: Phase 8 On-Device AI COMPLETE → **Phase 6 READY**
+**Current APK**: `SensualRead-v0.31.apk` (to build)
 
 ---
 
@@ -100,14 +118,15 @@ Dark:  primary=#FF80A0, bg=#121212, surface=#1E1E1E, readerBg=#121212
 Pink scale: #FFF0F5 → #FF4D7D → #800031
 ```
 
-### ADR-007: Adaptive Pagination & Smooth Transitions — IMPLEMENTED ✓
+### ADR-007: Continuous Scroll Reader — UPDATED v0.31 ✓
 ```
-charsPerPage = max(800, floor(w/(fontSize×ratio)) × floor(h/(fontSize×lineHeight)))
-charWidthRatio: serif=0.50, sans-serif=0.48, monospace=0.60
-Transition: 180ms slide out → content swap → 180ms slide in (native driver)
-Buffer: triple-buffer {prevText, currText, nextText} via getPageText(n) O(1)
-PageText = React.memo (prevents intensity re-renders)
-Race condition fix (v0.17): recalcCharsPerPage() called in loadFile after renderer ready
+Architecture: FlatList of paragraphs (no pages, no charsPerPage)
+Paragraph split: fullText.split(/\n\n+/) → ParagraphItem{id, text, charOffset}
+Tap zones: left 25% = scroll up 90% height, right 25% = scroll down 90% height
+Position: charOffset → paragraph binary search → scrollToOffset(index × estimatedHeight, 150ms delay)
+TriggerEngine: onViewableItemsChanged → processContent(visible paragraphs), preloadContent(next 8)
+Progress: paragraphIndex / totalParagraphs → % display
+getItemLayout: estimatedHeight = fontSize × lineHeight × 4 (rough, for FlatList optimization)
 ```
 
 ### ADR-008: Library Persistence — IMPLEMENTED ✓
@@ -258,6 +277,26 @@ npx react-native run-android
 ---
 
 ## Session History (recent → old)
+
+### 2026-05-15 — v0.31 — Phase 8.5: Continuous Scroll Reader (book-story inspired)
+- **Motivation**: blank pages on BlueStacks (bad charsPerPage calc) + visible slide animation
+- **ReaderView.tsx**: full rewrite — FlatList of paragraphs, no pagination, no slide animation
+- **IRenderer.ts**: added `getFullText(): string` to interface
+- **EpubRenderer.ts**: implemented `getFullText()` → chapters joined with `\n\n`
+- **TxtRenderer.ts**: already had `getFullText()`, now part of interface
+- **Tap behavior**: left tap = scroll ↑ 90% screen, right tap = scroll ↓ 90% screen
+- **Position restore**: `charOffset` → paragraph search → `scrollToOffset` (150ms delay)
+- **Progress**: shows percentage instead of page X/Y
+
+### 2026-05-15 — v0.30 — Phase 8: On-Device AI Contextual Scoring
+- **OnDeviceAIAnalyzer**: `src/services/ai/OnDeviceAIAnalyzer.ts` — implements `ITriggerEngine`, copies model from `assets/models/` on first launch, `preloadAsync()` runs ONNX inference, `analyze()` returns cached score synchronously
+- **CamembertTokenizer**: `fromPath()` static method added for post-copy asset loading
+- **TriggerEngine hot-swap**: `_initAI()` runs on construction, swaps `this.analyzer` from `KeywordAnalyzer` → `OnDeviceAIAnalyzer` when ONNX session ready; `onAiModelReady()` callback for UI
+- **Triple-Buffer AI preload**: `preloadContent()` calls `aiAnalyzer.preloadAsync(text)` then caches sync result — AI inference on page N+1 while user reads page N
+- **ReaderScreen**: simplified (AIScorer wiring removed), `✦ AI` badge appears on hot-swap, single `TriggerEngine.onIntensityChange` drives all UI
+- **Assets**: `android/app/src/main/assets/models/lovense_camembert.onnx` + `tokenizer.json`
+- **Build fix**: patched `onnxruntime-react-native` build.gradle `VersionNumber` → Groovy tokenize (incompatible with Gradle 9+)
+- **Tools**: `export_tokenizer.py` extracts `tokenizer.json` from HF cache
 
 ### 2026-05-14 — v0.19 — Phase 5.5 Visual Premium + Phase 6 Prep
 - **HomeScreen Grid**: 3-col flexWrap grid, BookGridCard with cover fill, format badge, progress overlay, elevation:4

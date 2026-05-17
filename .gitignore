@@ -55,3 +55,23 @@ replay_pid*.log
 SensualRead/.buckd/
 SensualRead/buck-out/
 SensualRead/buck-cache/
+
+# Python virtual environments
+.venv/
+venv/
+tools/.venv/
+
+# AI model artifacts (large binaries, generated)
+tools/lovense_ai_model/
+tools/*.onnx
+tools/tokenizer_export/
+tools/dataset_lovense.csv
+tools/tokenizer.json
+
+# Android assets — ONNX models + tokenizer (large, copy manually before build)
+SensualRead/android/app/src/main/assets/models/
+SensualRead/android/app/src/main/assets/*.onnx
+SensualRead/android/app/src/main/assets/tokenizer.json
+
+# Duplicate android dir created by misplaced bundle command
+SensualRead/android/android/

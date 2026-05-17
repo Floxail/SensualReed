@@ -151,7 +151,7 @@ def main():
     train_ds = LovenseDataset(train_enc, train_scores)
     val_ds   = LovenseDataset(val_enc,   val_scores)
 
-    # Model
+    # Model — local_files_only avoids HF Hub path validator on Windows re-runs
     model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=1)
 
     # Train

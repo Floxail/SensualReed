@@ -67,8 +67,8 @@ export const ReaderScreen: React.FC = () => {
   // Animation for intensity bar
   const intensityAnim = useRef(new Animated.Value(0)).current;
 
-  // TriggerEngine instance
   const triggerEngineRef = useRef<TriggerEngine | null>(null);
+  const [isAiActive, setIsAiActive] = useState(false);
 
   // Load book from library if bookId is provided
   useEffect(() => {
@@ -123,12 +123,9 @@ export const ReaderScreen: React.FC = () => {
       triggerEngineRef.current.setHapticService(hapticService);
     }
 
-    // Subscribe to intensity changes
     const unsubscribe = triggerEngineRef.current.onIntensityChange((result: AnalysisResult) => {
       setCurrentIntensity(result.score);
       setMatchedKeywords(result.matchedKeywords.slice(0, 3));
-
-      // Animate intensity bar
       Animated.spring(intensityAnim, {
         toValue: result.score,
         useNativeDriver: false,
@@ -137,8 +134,12 @@ export const ReaderScreen: React.FC = () => {
       }).start();
     });
 
+    // Show AI badge when model hot-swaps in
+    const unsubAi = triggerEngineRef.current.onAiModelReady(() => setIsAiActive(true));
+
     return () => {
       unsubscribe();
+      unsubAi();
       triggerEngineRef.current?.stop();
     };
   }, []);
@@ -155,10 +156,9 @@ export const ReaderScreen: React.FC = () => {
     return () => subscription.remove();
   }, [currentBookId, pageInfo, updateProgress]);
 
-  // Handle content change from ReaderView
   const handleContentChange = useCallback((content: PageContent) => {
-    if (settings.analysisEnabled && triggerEngineRef.current) {
-      triggerEngineRef.current.processContent(content.text);
+    if (settings.analysisEnabled) {
+      triggerEngineRef.current?.processContent(content.text);
     }
   }, [settings.analysisEnabled]);
 
@@ -351,12 +351,14 @@ export const ReaderScreen: React.FC = () => {
               </Text>
             </View>
 
-            {/* Matched keywords (if any) */}
-            {matchedKeywords.length > 0 && (
+            {/* Analysis label */}
+            {isAiActive ? (
+              <Text style={[styles.keywordsText, { color: Colors.pink[200] }]}>✦ AI</Text>
+            ) : matchedKeywords.length > 0 ? (
               <Text style={[styles.keywordsText, { color: Colors.pink[200] }]} numberOfLines={1}>
                 {matchedKeywords.join(', ')}
               </Text>
-            )}
+            ) : null}
           </View>
 
           <View style={styles.headerActions}>

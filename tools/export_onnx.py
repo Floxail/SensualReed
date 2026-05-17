@@ -8,6 +8,7 @@ Usage:
 
 import argparse
 import os
+from pathlib import Path
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -18,10 +19,49 @@ ONNX_INT8 = "lovense_model_int8.onnx"
 MAX_LEN   = 128
 
 
+def find_best_checkpoint(base_dir: Path) -> Path:
+    """
+    If final_model/ doesn't exist (script crashed before save_pretrained),
+    find best checkpoint from trainer_state.json, or fall back to latest checkpoint.
+    """
+    if (base_dir / "final_model").exists():
+        return base_dir / "final_model"
+
+    # Try trainer_state.json → best_model_checkpoint
+    state_file = base_dir / "trainer_state.json"
+    if state_file.exists():
+        import json as _json
+        state = _json.loads(state_file.read_text())
+        best = state.get("best_model_checkpoint")
+        if best and Path(best).exists():
+            print(f"[INFO] Using best checkpoint: {best}")
+            return Path(best)
+
+    # Fall back: latest checkpoint by number
+    checkpoints = sorted(base_dir.glob("checkpoint-*"),
+                         key=lambda p: int(p.name.split("-")[-1]))
+    if checkpoints:
+        print(f"[INFO] Using latest checkpoint: {checkpoints[-1]}")
+        return checkpoints[-1]
+
+    raise FileNotFoundError(f"No model found in {base_dir}")
+
+
 def export(model_dir: str):
-    print(f"[1/3] Loading model from {model_dir}...")
-    tokenizer = AutoTokenizer.from_pretrained(model_dir)
-    model = AutoModelForSequenceClassification.from_pretrained(model_dir)
+    base_dir = Path(model_dir).resolve()
+    # If user passed final_model directly, go up one level for checkpoint search
+    if base_dir.name == "final_model" and not base_dir.exists():
+        base_dir = base_dir.parent
+
+    model_path = find_best_checkpoint(base_dir)
+    print(f"[1/3] Loading model from {model_path}...")
+
+    # Load using specific Camembert classes — avoids HF Hub path validator on Windows
+    from transformers import CamembertTokenizer, CamembertForSequenceClassification
+    tokenizer = CamembertTokenizer.from_pretrained("almanach/camembert-base")
+    model = CamembertForSequenceClassification.from_pretrained(
+        str(model_path), attn_implementation="eager"
+    )
     model.eval()
     model.cpu()
 
