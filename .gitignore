@@ -27,6 +27,8 @@ SensualRead/android/app/src/main/res/raw/
 SensualRead/android/local.properties
 SensualRead/.env
 .env
+# Clé RevenueCat (ne jamais committer)
+SensualRead/src/config/keys.ts
 
 # Metro
 SensualRead/.metro-health-check*
@@ -41,8 +43,11 @@ SensualRead/.metro-health-check*
 Thumbs.db
 nul
 
-# Claude Code local settings
-.claude/settings.local.json
+# Claude Code / AI agent data
+.claude/
+graphify-out/
+docs/superpowers/
+SensualRead/docs/superpowers/
 
 # Logs
 npm-debug.log*
