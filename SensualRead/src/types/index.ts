@@ -71,3 +71,6 @@ export type RootStackParamList = {
   DeviceConnect: undefined;
   DeviceTest: undefined;
 };
+
+// Monetisation
+export type PremiumSource = 'iap' | 'gift';
