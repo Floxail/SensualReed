@@ -4,7 +4,7 @@
  * STATUS: STUB - Implementation pending
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -15,7 +15,13 @@ import {
   ScrollView,
   StatusBar,
   TouchableOpacity,
+  TextInput,
+  ToastAndroid,
 } from 'react-native';
+import { usePremiumStore } from '../store/usePremiumStore';
+import { MonetizationService } from '../services/monetization/MonetizationService';
+import { GiftCodeService } from '../services/monetization/GiftCodeService';
+import { AdService } from '../services/monetization/AdService';
 import { useAppStore } from '../store/useAppStore';
 import { useColors, useThemeToggle, Spacing, BorderRadius, Typography, Colors } from '../theme';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -47,6 +53,80 @@ export const SettingsScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
 
+  const { isPremium, source, sepiaUnlocked, unlockSepia } = usePremiumStore();
+  const [productPrice, setProductPrice] = React.useState<string>('...');
+  const [giftCode, setGiftCode] = React.useState('');
+  const [purchaseLoading, setPurchaseLoading] = React.useState(false);
+  const [giftLoading, setGiftLoading] = React.useState(false);
+  const [rewardLoading, setRewardLoading] = React.useState(false);
+
+  useEffect(() => {
+    if (!isPremium) {
+      MonetizationService.getProductPrice().then(setProductPrice);
+    }
+  }, [isPremium]);
+
+  const handlePurchase = async () => {
+    setPurchaseLoading(true);
+    try {
+      await MonetizationService.purchase();
+      AdService.destroyAll();
+      ToastAndroid.show('Premium activé !', ToastAndroid.SHORT);
+    } catch (e: any) {
+      if (e?.message !== 'CANCELLED') {
+        ToastAndroid.show("Erreur lors de l'achat. Réessaie.", ToastAndroid.SHORT);
+      }
+    } finally {
+      setPurchaseLoading(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setPurchaseLoading(true);
+    try {
+      const found = await MonetizationService.restorePurchases();
+      if (found) {
+        AdService.destroyAll();
+        ToastAndroid.show('Achat restauré !', ToastAndroid.SHORT);
+      } else {
+        ToastAndroid.show('Aucun achat trouvé.', ToastAndroid.SHORT);
+      }
+    } catch {
+      ToastAndroid.show('Erreur réseau. Réessaie.', ToastAndroid.SHORT);
+    } finally {
+      setPurchaseLoading(false);
+    }
+  };
+
+  const handleGiftCode = async () => {
+    if (!giftCode.trim()) return;
+    setGiftLoading(true);
+    try {
+      await GiftCodeService.activate(giftCode);
+      AdService.destroyAll();
+      setGiftCode('');
+      ToastAndroid.show('Code cadeau activé !', ToastAndroid.SHORT);
+    } catch {
+      ToastAndroid.show('Code invalide.', ToastAndroid.SHORT);
+    } finally {
+      setGiftLoading(false);
+    }
+  };
+
+  const handleRewarded = async () => {
+    setRewardLoading(true);
+    try {
+      const earned = await AdService.showRewarded();
+      if (earned) {
+        unlockSepia();
+        updateSettings({ theme: 'sepia' });
+        ToastAndroid.show('Thème Sepia déverrouillé !', ToastAndroid.SHORT);
+      }
+    } finally {
+      setRewardLoading(false);
+    }
+  };
+
   return (
     <ErrorBoundary screenName="SettingsScreen">
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -64,6 +144,99 @@ export const SettingsScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.content}>
+        {/* ── SECTION PREMIUM ── */}
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+          PREMIUM
+        </Text>
+
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          {isPremium ? (
+            <View style={{ padding: Spacing.md }}>
+              <Text style={[styles.settingLabel, { color: colors.primary }]}>
+                ✦ Premium actif ✓
+              </Text>
+              <Text style={[styles.settingValue, { color: colors.textSecondary, marginTop: 4 }]}>
+                Source : {source === 'gift' ? 'Code cadeau' : 'Achat'}
+              </Text>
+            </View>
+          ) : (
+            <View style={{ padding: Spacing.md, gap: Spacing.sm }}>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>
+                ✦ SensualRead Premium
+              </Text>
+              <Text style={[styles.settingValue, { color: colors.textSecondary }]}>
+                Lisez sans interruption publicitaire.
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.premiumBtn, { backgroundColor: colors.primary }]}
+                onPress={handlePurchase}
+                disabled={purchaseLoading}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>
+                  {purchaseLoading ? 'Traitement...' : `Acheter — ${productPrice}`}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleRestore} disabled={purchaseLoading}>
+                <Text style={{ color: colors.primary, textAlign: 'center', marginTop: 4 }}>
+                  Restaurer un achat
+                </Text>
+              </TouchableOpacity>
+
+              <View style={{ marginTop: Spacing.sm }}>
+                <Text style={[styles.settingValue, { color: colors.textSecondary }]}>
+                  Code cadeau :
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                  <TextInput
+                    style={[styles.codeInput, { color: colors.text, borderColor: colors.border, flex: 1 }]}
+                    value={giftCode}
+                    onChangeText={setGiftCode}
+                    placeholder="MONCODE"
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="characters"
+                  />
+                  <TouchableOpacity
+                    style={[styles.premiumBtn, { backgroundColor: colors.primary, paddingHorizontal: 16 }]}
+                    onPress={handleGiftCode}
+                    disabled={giftLoading}
+                  >
+                    <Text style={{ color: '#FFFFFF' }}>
+                      {giftLoading ? '...' : 'Activer'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {!isPremium && !sepiaUnlocked && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.textMuted, marginTop: Spacing.lg }]}>
+              BONUS
+            </Text>
+            <View style={[styles.section, { backgroundColor: colors.card }]}>
+              <TouchableOpacity
+                style={{ padding: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}
+                onPress={handleRewarded}
+                disabled={rewardLoading}
+              >
+                <Text style={{ fontSize: 20 }}>📺</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>
+                    {rewardLoading ? 'Chargement...' : 'Regarder une pub'}
+                  </Text>
+                  <Text style={[styles.settingValue, { color: colors.textSecondary }]}>
+                    Déverrouille le thème Sepia (permanent)
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
         {/* Appearance Section */}
         <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
           APPEARANCE
@@ -263,7 +436,7 @@ export const SettingsScreen: React.FC = () => {
         <View style={[styles.section, { backgroundColor: colors.card }]}>
           <SettingRow
             label="SensualRead"
-            value="Version 0.35"
+            value="Version 0.36"
             colors={colors}
           />
 
@@ -358,6 +531,20 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: Spacing.xxl,
+  },
+  premiumBtn: {
+    backgroundColor: '#FF4D7D',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  codeInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
   },
 });
 
