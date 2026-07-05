@@ -23,6 +23,9 @@ import { bulkImportService, epubCoverExtractor, ImportCandidate } from '../servi
 import { copyBookToLibrary, getLibraryPath } from '../store/useLibraryStore';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ConnectionStatus } from '../components/ConnectionStatus';
+import { BannerAd } from 'react-native-google-mobile-ads';
+import { AdService, BannerAdConfig } from '../services/monetization';
+import { usePremiumStore } from '../store/usePremiumStore';
 
 type HomeNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
@@ -123,6 +126,7 @@ export const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<HomeNavigationProp>();
   const { books, removeBook, addBook, updateCover } = useLibraryStore();
+  const { isPremium } = usePremiumStore();
 
   const [scanModalVisible, setScanModalVisible] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -130,7 +134,8 @@ export const HomeScreen: React.FC = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
 
-  const handleBookPress = (book: LibraryBook) => {
+  const handleBookPress = async (book: LibraryBook) => {
+    await AdService.showInterstitialIfNeeded();
     navigation.navigate('Reader', { bookId: book.id });
   };
 
@@ -300,6 +305,16 @@ export const HomeScreen: React.FC = () => {
 
           <View style={{ height: Spacing.xl }} />
         </ScrollView>
+
+        {/* Bannière AdMob — absente si premium */}
+        {!isPremium && (
+          <BannerAd
+            unitId={BannerAdConfig.unitId}
+            size={BannerAdConfig.size}
+            requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+            onAdFailedToLoad={() => {}}
+          />
+        )}
 
         {/* Scan modal */}
         <Modal
