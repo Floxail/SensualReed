@@ -6,7 +6,7 @@ import { REVENUECAT_ANDROID_KEY } from '../../config/keys';
 import { usePremiumStore } from '../../store/usePremiumStore';
 import { GiftCodeService } from './GiftCodeService';
 
-const ENTITLEMENT_ID = 'premium';
+const ENTITLEMENT_ID = 'SensualRead Pro';
 
 export const MonetizationService = {
   async initialize(): Promise<void> {
