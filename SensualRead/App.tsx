@@ -7,6 +7,9 @@ import { StatusBar, useColorScheme, View, ActivityIndicator, StyleSheet } from '
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { PermissionScreen, checkPermissionsComplete } from './src/screens/PermissionScreen';
+import { MonetizationService } from './src/services/monetization/MonetizationService';
+import { AdService } from './src/services/monetization/AdService';
+import { usePremiumStore } from './src/store/usePremiumStore';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -22,6 +25,19 @@ function App() {
     if (!permissionsComplete) {
       setShowPermissions(true);
     }
+
+    // Initialiser monétisation (IAP + gift code restore)
+    try {
+      await MonetizationService.initialize();
+    } catch {
+      // Pas bloquant — l'app fonctionne sans réseau
+    }
+
+    // Initialiser AdMob seulement si pas premium
+    if (!usePremiumStore.getState().isPremium) {
+      AdService.initialize();
+    }
+
     setIsLoading(false);
   };
 
