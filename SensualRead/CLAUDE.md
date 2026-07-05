@@ -1,7 +1,7 @@
 # CLAUDE.md - SensualRead Project Memory
 
 > **RULE**: Always read this file at the start of each session. Always update it at the end.
-> **VERSIONING RULE**: Current version = **v0.35**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
+> **VERSIONING RULE**: Current version = **v0.36**. Each new APK build → increment by 0.01 AND update `"Version X.XX"` string in `src/screens/SettingsScreen.tsx` (ABOUT section). Stop only when user says "c'est la v1".
 
 ---
 
@@ -277,6 +277,19 @@ npx react-native run-android
 ---
 
 ## Session History (recent → old)
+
+### 2026-07-05 — v0.36 — Monetisation : AdMob + RevenueCat IAP + Codes Cadeaux
+- **AdMob**: bannière bas de `HomeScreen`, interstitielle toutes les 3 ouvertures de livre, rewarded pour débloquer Sepia
+- **RevenueCat IAP**: achat unique `'premium'` entitlement, restore, prix dynamique depuis l'API
+- **Gift codes**: SHA-256 validation locale via `crypto-js` — hashes uniquement dans `giftCodes.ts`, jamais en clair
+- **`usePremiumStore`**: Zustand persist — `isPremium`, `source ('iap'|'gift')`, `sepiaUnlocked`
+- **`AdService`**: preload interstitielle au démarrage, timeout 5s fallback, isPremium guard sur toutes les méthodes
+- **`MonetizationService`**: configure RevenueCat → vérifie entitlement → fallback gift code restore
+- **SettingsScreen**: section PREMIUM (achat/restore/code cadeau) + section BONUS (rewarded → sepia)
+- **Sécurité**: `src/config/keys.ts` gitignored, `GIFT_CODE_HASHES = []` vide (à remplir avant release)
+- **Tests**: 9/9 passing (4 usePremiumStore + 5 GiftCodeService)
+- **À faire avant release Play Store**: remplacer IDs AdMob test → prod, clé RevenueCat réelle, vrais hashes SHA-256 dans `giftCodes.ts`
+- **Files**: `src/services/monetization/`, `src/store/usePremiumStore.ts`, `src/config/adUnits.ts`, `App.tsx`, `HomeScreen.tsx`, `SettingsScreen.tsx`, `AndroidManifest.xml`
 
 ### 2026-05-17 — v0.35 — Pro-Level Scrolling Performance (FlatList → FlashList)
 - **Migration**: `FlatList` → `@shopify/flash-list` `FlashList` — eliminates blanking during fast scroll via native view recycling
