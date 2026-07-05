@@ -1,5 +1,9 @@
 {
   "devDependencies": {
     "@react-native-community/cli": "^20.1.0"
+  },
+  "dependencies": {
+    "react-native-purchases": "^10.4.1",
+    "react-native-purchases-ui": "^10.4.1"
   }
 }
